@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Photo Description Document</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:22px;background:linear-gradient(140deg,#eef2ff,#f8fafc 55%,#e7efff);font-family:system-ui,sans-serif;color:#172033}
+main{width:min(820px,100%);margin:auto}header{padding:18px 0 24px}h1{font-size:clamp(30px,5vw,44px);letter-spacing:-.04em;margin:0 0 10px}header p,.note{color:#657087;line-height:1.5}
+.panel{background:#fff;border:1px solid #dce2ed;border-radius:20px;padding:24px;margin-bottom:18px;box-shadow:0 10px 35px #263d6b0c}h2{font-size:19px;margin:0 0 18px}
+label{display:block;font-weight:650;font-size:14px;margin:16px 0 8px}input[type=file],textarea,select{width:100%;font:inherit;border:1px solid #cbd3e1;border-radius:11px;padding:12px;background:#fff;color:#172033}textarea{min-height:105px;resize:vertical}select{max-width:180px}
+#preview{display:none;max-width:100%;max-height:330px;object-fit:contain;border-radius:12px;margin-top:14px;background:#f4f6fb}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}button{border:0;border-radius:11px;padding:12px 17px;font:inherit;font-weight:700;cursor:pointer}.primary{background:#3157c8;color:white}.secondary{background:#edf1fa;color:#24304a}button:disabled{opacity:.45;cursor:not-allowed}
+.note{font-size:13px;margin:12px 0 0}.status{min-height:20px;font-size:14px;color:#a32929;margin-top:12px}.item{display:grid;grid-template-columns:110px 1fr;gap:16px;padding:14px 0;border-top:1px solid #dce2ed}.item img{width:110px;height:100px;object-fit:cover;border-radius:10px;background:#f4f6fb}.item h3{margin:0 0 6px;font-size:15px}.item p{white-space:pre-wrap;margin:0;color:#657087;font-size:14px}.remove{margin-top:10px;padding:7px 10px;font-size:12px}.counter{font-size:13px;color:#657087;font-weight:600;margin-left:8px}@media(max-width:560px){body{padding:14px}.panel{padding:18px}.item{grid-template-columns:82px 1fr;gap:12px}.item img{width:82px;height:82px}}
+</style></head>
+<body><main>
+<header><h1>Photo Description Document</h1><p>Choose a photo, describe it, and assign a number from 1 to 4. Add more photos as needed, then download everything as a Word document.</p></header>
+<section class="panel"><h2>Add a photo <span class="counter" id="countLabel">0 added</span></h2>
+<label for="photo">Choose a photo from your phone or computer</label><input id="photo" type="file" accept="image/*" capture="environment"><img id="preview" alt="Selected photo preview">
+<label for="description">Text description</label><textarea id="description" placeholder="Type a description of this photo…" maxlength="5000"></textarea>
+<label for="number">Number</label><select id="number"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+<div class="actions"><button class="primary" id="addBtn" type="button">Add photo and description</button><button class="secondary" id="clearBtn" type="button">Clear current entry</button></div>
+<div id="status" class="status" role="status"></div><p class="note">Photos stay in this browser while you work; they are not uploaded to a server. Keep this page open until you download the document.</p></section>
+<section class="panel"><h2>Your entries <span class="counter" id="entriesCount">0 entries</span></h2><div id="entries"><p class="note">Added photos and descriptions will appear here.</p></div>
+<div class="actions"><button class="primary" id="doneBtn" type="button" disabled>I'm done — download Word document</button></div><p class="note">Downloads a .docx file that can be opened in Microsoft Word.</p></section>
+</main>
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+<script>
+const $=id=>document.getElementById(id), entries=[]; let currentPhoto=null, previewUrl=null;
+$('photo').addEventListener('change',()=>{
+ $('status').textContent=''; const file=$('photo').files[0]; currentPhoto=null;
+ if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=null;
+ if(!file){$('preview').style.display='none';return}
+ if(!file.type.startsWith('image/')){$('status').textContent='Please choose an image file.';$('photo').value='';return}
+ const reader=new FileReader();reader.onload=()=>{currentPhoto={name:file.name,type:file.type,data:reader.result};previewUrl=URL.createObjectURL(file);$('preview').src=previewUrl;$('preview').style.display='block'};
+ reader.onerror=()=>$('status').textContent='Could not read that photo.';reader.readAsDataURL(file);
+});
+$('addBtn').onclick=()=>{
+ $('status').textContent='';const description=$('description').value.trim();
+ if(!currentPhoto){$('status').textContent='Choose a photo first.';return}
+ if(!description){$('status').textContent='Enter a text description.';$('description').focus();return}
+ entries.push({photo:currentPhoto,description,number:Number($('number').value)});render();clearForm();
+};
+$('clearBtn').onclick=()=>{clearForm();$('status').textContent=''};
+function clearForm(){$('photo').value='';$('description').value='';currentPhoto=null;if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=null;$('preview').removeAttribute('src');$('preview').style.display='none'}
+function render(){
+ $('countLabel').textContent=entries.length+' added';$('entriesCount').textContent=entries.length+(entries.length===1?' entry':' entries');$('doneBtn').disabled=!entries.length;
+ $('entries').innerHTML='';if(!entries.length){$('entries').innerHTML='<p class="note">Added photos and descriptions will appear here.</p>';return}
+ entries.forEach((e,i)=>{const row=document.createElement('article');row.className='item';const img=document.createElement('img');img.src=e.photo.data;img.alt='Photo '+(i+1);const c=document.createElement('div'),h=document.createElement('h3'),p=document.createElement('p'),b=document.createElement('button');h.textContent='Number '+e.number+' · Photo '+(i+1);p.textContent=e.description;b.className='secondary remove';b.textContent='Remove entry';b.onclick=()=>{entries.splice(i,1);render()};c.append(h,p,b);row.append(img,c);$('entries').append(row)});
+}
+function dataBytes(url){const b=atob(url.split(',')[1]),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
+async function imageBytes(e){
+ if(e.photo.type==='image/png'||e.photo.type==='image/jpeg')return dataBytes(e.photo.data);
+ const img=new Image();img.src=e.photo.data;await img.decode();const scale=Math.min(1,1200/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+ const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));if(!blob)throw Error('Could not convert a photo.');return new Uint8Array(await blob.arrayBuffer());
+}
+$('doneBtn').onclick=async()=>{
+ const btn=$('doneBtn'),original=btn.textContent;
+ try{
+  if(!window.docx)throw Error('The Word document library did not load. Check your internet connection and try again.');
+  btn.disabled=true;btn.textContent='Creating document…';$('status').textContent='';
+  const {Document,Packer,Paragraph,TextRun,HeadingLevel,ImageRun,AlignmentType}=window.docx;
+  const children=[new Paragraph({text:'Photo Description Document',heading:HeadingLevel.TITLE}),new Paragraph({text:'Created '+new Date().toLocaleString(),spacing:{after:300}})];
+  for(let i=0;i<entries.length;i++){
+   const e=entries[i];children.push(new Paragraph({text:'Photo '+(i+1)+' — Number '+e.number,heading:HeadingLevel.HEADING_1,pageBreakBefore:i>0,spacing:{after:180}}));
+   const bytes=await imageBytes(e);const image=new ImageRun({data:bytes,transformation:{width:480,height:320},altText:{title:'Photo '+(i+1),description:e.description}});
+   children.push(new Paragraph({children:[image],alignment:AlignmentType.CENTER,spacing:{after:220}}),new Paragraph({children:[new TextRun({text:'Description',bold:true})]}));
+   e.description.split(/\\n/).forEach(line=>children.push(new Paragraph({text:line||' '})));
+  }
+  const doc=new Document({sections:[{properties:{page:{margin:{top:720,right:720,bottom:720,left:720}}},children}]});
+  const blob=await Packer.toBlob(doc),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='photo-descriptions.docx';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);$('status').textContent='Your Word document has been created.';
+ }catch(err){$('status').textContent=err.message||'Could not create the document. Please try again.'}
+ finally{btn.disabled=!entries.length;btn.textContent=original}
+};
+</script></body></html>
